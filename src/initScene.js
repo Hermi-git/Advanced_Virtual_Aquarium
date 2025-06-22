@@ -125,3 +125,88 @@ export function initScene() {
         height: window.innerHeight
     });
     composer.addPass(bokehPass);
+    
+    world = new CANNON.World();
+    world.gravity.set(0, physics.gravity, 0);
+    world.broadphase = new CANNON.SAPBroadphase(world); // Good for performance with many objects
+    world.solver.iterations = 10; // Increase iterations for better stability
+
+    // --- Define Cannon.js Materials ---
+    wallMaterial = new CANNON.Material("wallMaterial");
+    fishMaterial = new CANNON.Material("fishMaterial");
+
+    // Define contact behavior between fish and walls
+    const fishWallContactMaterial = new CANNON.ContactMaterial(
+        fishMaterial,
+        wallMaterial,
+        {
+            friction: 0.0,    // No friction on walls
+            restitution: 0.2  // Slight bounce off walls
+        }
+    );
+    world.addContactMaterial(fishWallContactMaterial);
+
+    // --- Create Six Static Cannon.js Plane Bodies for Tank Boundaries ---
+    // The halfExtents of the tank for positioning planes
+    const halfX = tankSize.x / 2;
+    const halfY = tankSize.y / 2;
+    const halfZ = tankSize.z / 2;
+
+    // Floor
+    const floorShape = new CANNON.Plane();
+    const floorBody = new CANNON.Body({ mass: 0, material: wallMaterial });
+    floorBody.addShape(floorShape);
+    floorBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2); // Rotate to be flat
+    floorBody.position.set(0, -halfY, 0); // Position at the bottom of the tank
+    world.addBody(floorBody);
+
+    // Ceiling
+    const ceilingShape = new CANNON.Plane();
+    const ceilingBody = new CANNON.Body({ mass: 0, material: wallMaterial });
+    ceilingBody.addShape(ceilingShape);
+    ceilingBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), Math.PI / 2); // Rotate to be flat
+    ceilingBody.position.set(0, halfY, 0); // Position at the top of the tank
+    world.addBody(ceilingBody);
+
+    // Back Wall (-Z)
+    const backWallShape = new CANNON.Plane();
+    const backWallBody = new CANNON.Body({ mass: 0, material: wallMaterial });
+    backWallBody.addShape(backWallShape);
+    // No rotation needed for Z-plane facing +Z
+    backWallBody.position.set(0, 0, -halfZ); // Position at the back of the tank
+    world.addBody(backWallBody);
+
+    // Front Wall (+Z)
+    const frontWallShape = new CANNON.Plane();
+    const frontWallBody = new CANNON.Body({ mass: 0, material: wallMaterial });
+    frontWallBody.addShape(frontWallShape);
+    frontWallBody.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Math.PI); // Rotate to face outward
+    frontWallBody.position.set(0, 0, halfZ); // Position at the front of the tank
+    world.addBody(frontWallBody);
+
+    // Left Wall (-X)
+    const leftWallShape = new CANNON.Plane();
+    const leftWallBody = new CANNON.Body({ mass: 0, material: wallMaterial });
+    leftWallBody.addShape(leftWallShape);
+    leftWallBody.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Math.PI / 2); // Rotate to be vertical
+    leftWallBody.position.set(-halfX, 0, 0); // Position at the left of the tank
+    world.addBody(leftWallBody);
+
+    // Right Wall (+X)
+    const rightWallShape = new CANNON.Plane();
+    const rightWallBody = new CANNON.Body({ mass: 0, material: wallMaterial });
+    rightWallBody.addShape(rightWallShape);
+    rightWallBody.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), -Math.PI / 2); // Rotate to be vertical
+    rightWallBody.position.set(halfX, 0, 0); // Position at the right of the tank
+    world.addBody(rightWallBody);
+
+    // Window resize listener
+    window.addEventListener('resize', onWindowResize, false);
+}
+
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    composer.setSize(window.innerWidth, window.innerHeight);
+}
