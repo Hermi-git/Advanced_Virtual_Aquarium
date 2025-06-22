@@ -81,3 +81,22 @@ const tankElementsToCreate = [
 ];
 
 
+class SmoothEllipseCurve extends THREE.Curve {
+    constructor(scaleFactor, yOffset, frequencies, radii, offsetX = 0, offsetZ = 0) {
+        super();
+        this.scaleFactor = scaleFactor;
+        this.yOffset = yOffset;
+        this.frequencies = frequencies;
+        this.radii = radii;
+        this.offsetX = offsetX;
+        this.offsetZ = offsetZ;
+    }
+    getPoint(t, optionalTarget = new THREE.Vector3()) {
+        const angle = 2 * Math.PI * t;
+        const x = Math.sin(angle * this.frequencies.xz) * this.radii.x * this.scaleFactor + this.offsetX;
+        const z = Math.cos(angle * this.frequencies.xz) * this.radii.z * this.scaleFactor + this.offsetZ;
+        const y = Math.sin(angle * this.frequencies.y) * this.radii.y * 0.4 + this.yOffset;
+        return optionalTarget.set(x, y, z);
+    }
+}
+
