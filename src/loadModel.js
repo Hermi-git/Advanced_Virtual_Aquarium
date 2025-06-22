@@ -100,3 +100,31 @@ class SmoothEllipseCurve extends THREE.Curve {
     }
 }
 
+function applyPBRMaterial(model, materialProperties) {
+    model.traverse(child => {
+        if (child.isMesh) {
+            const newMaterial = child.material.clone();
+
+            if (materialProperties.color) {
+                newMaterial.color.set(materialProperties.color);
+            }
+            newMaterial.metalness = materialProperties.metalness !== undefined ? materialProperties.metalness : 0.1;
+            newMaterial.roughness = materialProperties.roughness !== undefined ? materialProperties.roughness : 0.5;
+            newMaterial.clearcoat = materialProperties.clearcoat !== undefined ? materialProperties.clearcoat : 0.5;
+            newMaterial.clearcoatRoughness = materialProperties.clearcoatRoughness !== undefined ? materialProperties.clearcoatRoughness : 0.5;
+            
+            
+            newMaterial.transparent = false; 
+            newMaterial.opacity = 1;         
+            newMaterial.side = THREE.DoubleSide; 
+            // --- END CRITICAL CHANGES ---
+
+            child.material = newMaterial;
+
+            child.castShadow = true;
+            child.receiveShadow = true;
+        }
+    });
+}
+
+
