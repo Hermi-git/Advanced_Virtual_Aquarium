@@ -79,3 +79,49 @@ export function initScene() {
 
     spotLightHelper = new THREE.SpotLightHelper(spotLight);
     // scene.add(spotLightHelper); // Helper is distracting, hiding it.
+     const tankGeometry = new THREE.BoxGeometry(tankSize.x, tankSize.y, tankSize.z);
+    const tankMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0xadd8e6,
+        metalness: 0,
+        roughness: 0.1,
+        transmission: 0.9,
+        transparent: true,
+        ior: 1.5
+    });
+    const tankCube = new THREE.Mesh(tankGeometry, tankMaterial);
+    scene.add(tankCube);
+
+    // Add a helper to visualize the tank boundaries
+    const boxHelper = new THREE.BoxHelper(tankCube, 0xffff00); // Yellow
+    scene.add(boxHelper);
+
+    const wireframe = new THREE.LineSegments(new THREE.EdgesGeometry(tankGeometry), new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2, transparent: true, opacity: 0.5 }));
+    tankCube.add(wireframe);
+
+    clock = new THREE.Clock();
+    
+    composer = new EffectComposer(renderer);
+    const renderPass = new RenderPass(scene, camera);
+    composer.addPass(renderPass);
+
+    // --- Post-processing adjustments for clarity ---
+    // UnrealBloomPass: Reduces overall bloom/blur
+    // Parameters: strength, radius, threshold
+    bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.2, 0.1, 0.98);
+    // Original: (new THREE.Vector2(window.innerWidth, window.innerHeight), 0.6, 0.4, 0.95);
+    // Changes:
+    // strength: 0.6 -> 0.2 (Significantly reduces the intensity of the bloom)
+    // radius: 0.4 -> 0.1 (Reduces how far the bloom spreads, making it tighter)
+    // threshold: 0.95 -> 0.98 (Only the very brightest parts of the scene will bloom, much less overall blur)
+    composer.addPass(bloomPass);
+
+    // BokehPass: Reduces blur amount and adjusts focus for a clearer look
+    // Parameters: focus, aperture, maxblur
+    bokehPass = new BokehPass(scene, camera, {
+        focus: 40.0, // Adjusted focus slightly, might need fine-tuning for your scene's "center"
+        aperture: 0.00005, // Significantly reduced (smaller value = less blur)
+        maxblur: 0.001,    // Significantly reduced (smaller value = less max blur)
+        width: window.innerWidth,
+        height: window.innerHeight
+    });
+    composer.addPass(bokehPass);
