@@ -128,3 +128,208 @@ function applyPBRMaterial(model, materialProperties) {
 }
 
 
+function createUniqueCurve(index) {
+    const colliderMargin = 0.5;
+    const safeTankX = tankSize.x / 2 - (2 + colliderMargin);
+    const safeTankY = tankSize.y / 2 - (2 + colliderMargin);
+    const safeTankZ = tankSize.z / 2 - (2 + colliderMargin);
+
+    const baseRadiusX = MathUtils.randFloat(safeTankX * 0.3, safeTankX * 0.8);
+    const baseRadiusZ = MathUtils.randFloat(safeTankZ * 0.3, safeTankZ * 0.8);
+    const baseAmplitudeY = MathUtils.randFloat(safeTankY * 0.3, safeTankY * 0.7);
+
+    const scaleFactor = MathUtils.randFloat(0.8, 1.0);
+    const yOffset = MathUtils.randFloat(-safeTankY * 0.8, safeTankY * 0.8); 
+    const xzFrequency = MathUtils.randFloat(0.7, 1.3);
+    const yWaveFrequency = MathUtils.randFloat(0.8, 2.0);
+
+    const offsetX = MathUtils.randFloat(-safeTankX * 0.2, safeTankX * 0.2);
+    const offsetZ = MathUtils.randFloat(-safeTankZ * 0.2, safeTankZ * 0.2);
+
+    return new SmoothEllipseCurve(
+        scaleFactor, yOffset,
+        { xz: xzFrequency, y: yWaveFrequency },
+        { x: baseRadiusX, z: baseRadiusZ, y: baseAmplitudeY },
+        offsetX, offsetZ
+    );
+}
+
+function createFishFromConfig(modelsCache) {
+    fishToCreate.forEach((fishConfig, i) => {
+        const gltf = modelsCache[fishConfig.modelFile];
+        if (!gltf) return;
+
+        const model = SkeletonUtils.clone(gltf.scene);
+        model.scale.setScalar(fishConfig.scale);
+        model.userData.isFish = true;
+
+        applyPBRMaterial(model, { color: fishConfig.color });
+
+        const mixer = new THREE.AnimationMixer(model);
+        if (gltf.animations.length) mixer.clipAction(gltf.animations[0]).play();
+
+        const spineBones = [];
+        model.traverse(obj => { if (obj.isBone && obj.name.toLowerCase().includes('spine')) spineBones.push(obj); });
+
+        const curve = createUniqueCurve(i);
+        const randomT = Math.random(); 
+        const startPosition = curve.getPoint(randomT);
+
+        const fishRadius = fishConfig.scale * 0.5;
+        const fishShape = new CANNON.Sphere(fishRadius);
+
+        const fishBody = new CANNON.Body({
+            mass: 1,
+            shape: fishShape,
+            material: fishMaterial,
+            collisionFilterGroup: FISH_GROUP,
+            collisionFilterMask: -1 ^ FISH_GROUP // Collide with everything EXCEPT other fish
+        });
+        fishBody.position.copy(startPosition);
+        world.addBody(fishBody);
+
+        model.position.copy(startPosition);
+
+        const fishSpeed = MathUtils.randFloat(0.5, 1.5);
+        
+        const fishData = { model, mixer, curve, t: randomT, speed: fishSpeed, spineBones, modelFile: fishConfig.modelFile, body: fishBody };
+        model.userData.fish = fishData;
+        fishArray.push(fishData);
+        scene.add(model);
+    });
+}
+
+function placeOtherModels(modelsCache) {
+    otherModels.forEach(modelConfig => {
+        const gltf = modelsCache[modelConfig.modelFile];
+        if (!gltf) return;
+        if (modelConfig.name === 'see_bed') {
+            seaBed = gltf.scene.clone();
+            seaBed.scale.set(10.2, 18, 10.2);
+            seaBed.position.set(0, -14, -3.7);
+
+            applyPBRMaterial(seaBed, { color: 0xc2b280 });
+
+            const seaBedShape = new CANNON.Plane();
+            const seaBedBody = new CANNON.Body({ mass: 0, material: wallMaterial });
+            seaBedBody.addShape(seaBedShape);
+            seaBedBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+            seaBedBody.position.set(seaBed.position.x, seaBed.position.y - 0.7, seaBed.position.z);
+            world.addBody(seaBedBody);
+
+            scene.add(seaBed);
+        }
+    });
+
+    // --- New: Place tank elements ---
+    tankElementsToCreate.forEach(elementConfig => {
+        const gltf = modelsCache[elementConfig.modelFile];
+        if (!gltf) {
+            console.warn(`Model not found for ${elementConfig.name}: ${elementConfig.modelFile}`);
+            return;
+        }
+
+        const model = gltf.scene.clone(); 
+        model.name = elementConfig.name; 
+
+        model.scale.setScalar(elementConfig.scale); 
+        model.position.copy(elementConfig.position);
+
+        if (elementConfig.rotation) {
+            model.rotation.copy(elementConfig.rotation);
+        }
+
+        applyPBRMaterial(model, { color: elementConfig.materialColor });
+
+        // --- DEBUGGING LOGS FOR EACH NEW MODEL ---
+        console.groupCollapsed(`Adding Model: ${model.name}`);
+        console.log('Model object:', model);
+        console.log('Position:', model.position.toArray());
+        console.log('Scale:', model.scale.toArray());
+        console.log('Visible:', model.visible);
+        console.log('Number of children:', model.children.length);
+
+        model.traverse(child => {
+            if (child.isMesh) {
+                console.log(`  Mesh: ${child.name || 'Unnamed Mesh'}`);
+                console.log(`    Mesh visible: ${child.visible}`);
+                console.log(`    Material color: #${child.material.color.getHexString()}`);
+                console.log(`    Material transparent: ${child.material.transparent}`);
+                console.log(`    Material opacity: ${child.material.opacity}`);
+                if (!child.geometry) {
+                    console.warn(`    Mesh has no geometry!`);
+                }
+            }
+        });
+        console.groupEnd();
+        // --- END DEBUGGING LOGS ---
+
+
+        scene.add(model);
+        sceneElements.push(model);
+
+        // --- Add Cannon.js Body for collision if isCollider is true ---
+        if (elementConfig.isCollider) {
+            let shape;
+            let body;
+            const staticMaterial = wallMaterial; 
+
+            switch (elementConfig.colliderShape) {
+                case 'sphere':
+                    shape = new CANNON.Sphere(elementConfig.colliderRadius || 1); 
+                    body = new CANNON.Body({ mass: 0, material: staticMaterial });
+                    body.addShape(shape);
+                    break;
+                case 'box':
+                    const halfExtents = elementConfig.colliderScale ?
+                        new CANNON.Vec3(elementConfig.colliderScale.x / 2, elementConfig.colliderScale.y / 2, elementConfig.colliderScale.z / 2) :
+                        new CANNON.Vec3(model.scale.x * 0.5, model.scale.y * 0.5, model.scale.z * 0.5); 
+                    shape = new CANNON.Box(halfExtents);
+                    body = new CANNON.Body({ mass: 0, material: staticMaterial });
+                    body.addShape(shape);
+                    break;
+                case 'mesh':
+                    console.warn(`'mesh' collider not fully implemented for ${elementConfig.name}. Falling back to Sphere.`);
+                    let boundingSphereRadius = 1; 
+                    if (model.children && model.children.length > 0 && model.children[0].geometry) {
+                        model.children[0].geometry.computeBoundingSphere();
+                        boundingSphereRadius = model.children[0].geometry.boundingSphere.radius * model.scale.x;
+                    }
+                    shape = new CANNON.Sphere(boundingSphereRadius);
+                    body = new CANNON.Body({ mass: 0, material: staticMaterial });
+                    body.addShape(shape);
+                    break;
+                default:
+                    console.warn(`Unknown collider shape for ${elementConfig.name}: ${elementConfig.colliderShape}. No collider added.`);
+                    return; 
+            }
+            
+            if (body) {
+                body.position.copy(model.position);
+                body.quaternion.copy(model.quaternion);
+                world.addBody(body);
+                model.userData.physicsBody = body;
+            }
+        }
+    });
+}
+
+export async function loadAllModels() {
+    const gltfLoader = new GLTFLoader();
+    const modelsCache = {};
+
+    const allModelConfigs = [...fishToCreate, ...otherModels, ...tankElementsToCreate];
+    const uniqueModelFiles = [...new Set(allModelConfigs.map(c => c.modelFile))];
+
+    await Promise.all(uniqueModelFiles.map(file =>
+        gltfLoader.loadAsync(file).then(gltf => {
+            modelsCache[file] = gltf;
+            console.log(`Loaded: ${file}`); 
+        }).catch(error => {
+            console.error(`Error loading model ${file}:`, error);
+        })
+    ));
+
+    createFishFromConfig(modelsCache);
+    placeOtherModels(modelsCache); 
+}
