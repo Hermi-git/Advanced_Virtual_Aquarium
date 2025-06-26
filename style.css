@@ -1,0 +1,9 @@
+body { margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; background-color: #1a202c; color: #e2e8f0; }
+canvas { display: block; }
+
+/* Make the GUI panel scrollable */
+#gui-container .lil-gui {
+    max-height: calc(100vh - 20px); /* Full height minus top/bottom margin */
+    overflow-y: auto;
+    overflow-x: hidden;
+}
