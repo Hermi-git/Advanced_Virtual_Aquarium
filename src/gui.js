@@ -12,7 +12,7 @@ export function setupGUI() {
         folder.add(fish.model.scale, 'x', 0.1, 3, 0.1).name('Scale').onChange(v => fish.model.scale.setScalar(v));
     });
 
-     const lightingFolder = gui.addFolder('Lighting');
+    const lightingFolder = gui.addFolder('Lighting');
     lightingFolder.addColor(lightingParams, 'ambientColor').name('Ambient Color').onChange(v => ambientLight.color.set(v));
     lightingFolder.add(lightingParams, 'ambientIntensity', 0, 2).name('Ambient Intensity').onChange(v => ambientLight.intensity = v);
     lightingFolder.addColor(lightingParams, 'directionalColor').name('Directional Color').onChange(v => directionalLight.color.set(v));
@@ -44,3 +44,11 @@ export function setupGUI() {
     dofFolder.add(bokehPass.uniforms.aperture, 'value', 0, 0.001).name('Aperture');
     dofFolder.add(bokehPass.uniforms.maxblur, 'value', 0, 0.02).name('Max Blur');
 
+    const tankObject = scene.children.find(c => c.geometry && c.geometry.type === 'BoxGeometry');
+    if (tankObject) {
+        const tankMaterial = tankObject.material;
+        tankFolder.add(tankMaterial, 'roughness', 0, 1).name('Roughness');
+        tankFolder.add(tankMaterial, 'transmission', 0, 1).name('Transmission');
+        tankFolder.add(tankMaterial, 'ior', 1, 2.33).name('IOR');
+    }
+}
